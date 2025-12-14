@@ -79,19 +79,26 @@ def get_plot_config(data_type, **user_params):
     config = {**default_config, **configs.get(data_type, {}), **user_params}
     return config
 
-def plot_raster_data(x, y, z, data_type=None, **kwargs):
+def plot_raster_data(x, y, z, data_type=None, sampling=None, **kwargs):
     config = get_plot_config(data_type, **kwargs)
     
     if data_type == 'DEM':
         z = np.ma.masked_where(z == 0, z)
 
-    elif data_type == 'GA':
-        vmax = np.nanmax(np.abs(z))
-        config['vmax'] = vmax
-        config['vmin'] = -vmax
+    if data_type == 'GA':
+        if config.get('vmax') is None or config.get('vmin') is None:
+            vmax = float(np.nanmax(np.abs(z)))
+            config['vmax'] = vmax if config.get('vmax') is None else config['vmax']
+            config['vmin'] = -vmax if config.get('vmin') is None else config['vmin']
+
+    if sampling is not None:
+        x = x[::sampling]
+        y = y[::sampling]
+        z = z[::sampling, ::sampling]
 
     fig, ax = plt.subplots(figsize=config['figsize'])
     im = ax.pcolormesh(x, y, z, cmap=config['cmap'], vmin=config['vmin'], vmax=config['vmax'])
+    
     cb = plt.colorbar(im)
     cb.set_label(config['data_title'], fontsize=12)
     ax.set_title(config['title'], fontsize=14)
@@ -111,8 +118,15 @@ def plot_scatter_data(x, y, z, data_type=None, **kwargs):
     if data_type == 'DEM':
         z = np.ma.masked_where(z == 0, z)
 
+    if data_type == 'GA':
+        if config.get('vmax') is None or config.get('vmin') is None:
+            vmax = float(np.nanmax(np.abs(z)))
+            config['vmax'] = vmax if config.get('vmax') is None else config['vmax']
+            config['vmin'] = -vmax if config.get('vmin') is None else config['vmin']
+
     fig, ax = plt.subplots(figsize=config['figsize'])
     sc = ax.scatter(x, y, c=z.ravel(), cmap=config['cmap'], vmin=config['vmin'], vmax=config['vmax'], s=10)
+
     cb = plt.colorbar(sc)
     cb.set_label(config['data_title'], fontsize=12)
     ax.set_title(config['title'], fontsize=14)
