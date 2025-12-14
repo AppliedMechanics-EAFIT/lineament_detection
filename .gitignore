@@ -2,6 +2,10 @@
 data/
 output/
 models/
+
+# Playground
+playground/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
