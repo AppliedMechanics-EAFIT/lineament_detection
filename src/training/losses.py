@@ -1,15 +1,20 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 def dice_loss(pred, target, smooth = 1.):
     pred = pred.contiguous()
     target = target.contiguous()    
-
     intersection = (pred * target).sum(dim=2).sum(dim=2)
-    
     loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=2).sum(dim=2) + target.sum(dim=2).sum(dim=2) + smooth)))
-    
     return loss.mean()
+
+def dice_loss_and_sigmoid(pred, target, smooth=1e-6):
+    pred = torch.sigmoid(pred)
+    intersection = (pred * target).sum(dim=(2, 3))
+    union = pred.sum(dim=(2, 3)) + target.sum(dim=(2, 3))
+    dice = (2. * intersection + smooth) / (union + smooth)
+    return 1 - dice.mean()
 
 def focal_loss_with_logits(inputs, targets, alpha=0.25, gamma=2.0, reduction='mean'):
     bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
@@ -63,3 +68,26 @@ def calc_loss(pred, target, metrics, bce_weight=0.5, use_focal=True, lambda_geo=
     metrics['loss'] += loss.detach().cpu().numpy() * target.size(0)
 
     return loss
+
+def calc_loss_sw(outputs, labels, metrics):
+    """
+    Función de loss binaria
+    """
+    criterion = nn.BCELoss()
+    loss = criterion(outputs, labels.squeeze(0))
+    metrics['loss'] += loss.item() * labels.size(0)
+    return loss
+
+def calculate_pos_weight(labels, eps=1e-6):
+    """
+    Calcula el peso positivo para BCE con logits.
+    eps: pequeña constante para estabilidad numérica
+    """
+    labels_np = labels.detach().cpu().numpy()
+    pos_mean = labels_np.mean()
+    neg_mean = 1 - pos_mean + eps
+
+    weight = neg_mean / pos_mean
+    weight = torch.tensor(weight, device=labels.device)
+
+    return weight
