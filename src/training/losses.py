@@ -18,14 +18,21 @@ def dice_loss_and_sigmoid(pred, target, smooth=1e-6):
 
 def focal_loss_with_logits(inputs, targets, alpha=0.25, gamma=2.0, reduction='mean'):
     bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
-    
+
     probs = F.sigmoid(inputs)
-    
+
     pt = torch.where(targets == 1, probs, 1 - probs)
-    
+
     focal_factor = (1 - pt) ** gamma
-    
-    loss = alpha * focal_factor * bce_loss
+
+    # alpha_t weights positive pixels by alpha and negative pixels by (1 - alpha).
+    # With alpha > 0.5 the rare positive class receives more emphasis.
+    alpha_t = torch.where(
+        targets == 1,
+        torch.full_like(inputs, alpha),
+        torch.full_like(inputs, 1.0 - alpha),
+    )
+    loss = alpha_t * focal_factor * bce_loss
 
     if reduction == 'mean':
         return loss.mean()
@@ -49,11 +56,21 @@ def curvature_loss(pred):
     ddy = dy[:, :, 1:, :] - dy[:, :, :-1, :]
     return (ddx.abs().mean() + ddy.abs().mean())
 
-def calc_loss(pred, target, metrics, bce_weight=0.5, use_focal=True, lambda_geo=0.0):
+def calc_loss(
+    pred,
+    target,
+    metrics,
+    bce_weight=0.5,
+    use_focal=True,
+    focal_alpha=0.25,
+    focal_gamma=2.0,
+    pos_weight=None,
+    lambda_geo=0.0,
+):
     if use_focal:
-        bce = focal_loss_with_logits(pred, target, alpha=0.25, gamma=2.0)
+        bce = focal_loss_with_logits(pred, target, alpha=focal_alpha, gamma=focal_gamma)
     else:
-        bce = F.binary_cross_entropy_with_logits(pred, target)
+        bce = F.binary_cross_entropy_with_logits(pred, target, pos_weight=pos_weight)
 
     pred = torch.sigmoid(pred)
     dice = dice_loss(pred, target)

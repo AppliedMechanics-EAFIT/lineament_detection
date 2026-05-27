@@ -10,15 +10,33 @@ import training.losses as losses
 from training.metrics import print_metrics
 
 def train_model(
-    model, 
-    optimizer, 
-    scheduler, 
-    dataloaders, 
-    num_epochs=25, 
-    device='cpu'
+    model,
+    optimizer,
+    scheduler,
+    dataloaders,
+    num_epochs=25,
+    device='cpu',
+    patience=None,
+    min_delta=1e-4,
+    bce_weight=0.5,
+    use_focal=True,
+    focal_alpha=0.25,
+    focal_gamma=2.0,
+    pos_weight=None,
+    lambda_geo=0.0,
 ):
+    """
+    Parameters
+    ----------
+    patience : int or None
+        Number of epochs with no improvement in val loss before stopping early.
+        None disables early stopping.
+    min_delta : float
+        Minimum decrease in val loss to be considered an improvement.
+    """
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e10
+    no_improve_count = 0
 
     train_losses = []
     val_losses = []
@@ -43,10 +61,11 @@ def train_model(
 
             # Crear barra de progreso
             progress_bar = tqdm(
-                enumerate(dataloaders[phase]), 
+                enumerate(dataloaders[phase]),
                 total=len(dataloaders[phase]),
                 desc=f'{phase.capitalize()}',
-                ncols=100
+                dynamic_ncols=True,
+                leave=True,
             )
 
             for batch_idx, (inputs, labels) in progress_bar:
@@ -57,20 +76,34 @@ def train_model(
 
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
-                    loss = losses.calc_loss(outputs, labels, metrics)
+                    loss = losses.calc_loss(
+                        outputs,
+                        labels,
+                        metrics,
+                        bce_weight=bce_weight,
+                        use_focal=use_focal,
+                        focal_alpha=focal_alpha,
+                        focal_gamma=focal_gamma,
+                        pos_weight=pos_weight,
+                        lambda_geo=lambda_geo,
+                    )
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-                        
+
                 epoch_samples += inputs.size(0)
-                
-                # Actualizar información en la barra
-                progress_bar.set_postfix({
-                    'batch_loss': f'{loss.item():.4f}',
-                    'avg_loss': f'{metrics["loss"]/epoch_samples:.4f}'
-                })
+
+                # refresh=False lets tqdm decide when to redraw (avoids a new
+                # line per batch in terminals that don't support \r)
+                progress_bar.set_postfix(
+                    {
+                        'loss': f'{loss.item():.4f}',
+                        'avg': f'{metrics["loss"] / epoch_samples:.4f}',
+                    },
+                    refresh=False,
+                )
 
             print_metrics(metrics, epoch_samples, phase)
             epoch_loss = metrics['loss'] / epoch_samples
@@ -82,13 +115,23 @@ def train_model(
                 scheduler.step()
 
             # deep copy the model
-            if phase == 'val' and epoch_loss < best_loss:
-                print("saving best model")
-                best_loss = epoch_loss
-                best_model_wts = copy.deepcopy(model.state_dict())
+            if phase == 'val':
+                if epoch_loss < best_loss - min_delta:
+                    print("saving best model")
+                    best_loss = epoch_loss
+                    best_model_wts = copy.deepcopy(model.state_dict())
+                    no_improve_count = 0
+                else:
+                    no_improve_count += 1
+                    if patience is not None:
+                        print(f'No improvement for {no_improve_count}/{patience} epoch(s)')
 
         time_elapsed = time.time() - since
         print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+        if patience is not None and no_improve_count >= patience:
+            print(f'Early stopping at epoch {epoch + 1} (no improvement for {patience} epochs)')
+            break
 
     print('Best val loss: {:4f}'.format(best_loss))
 
@@ -127,8 +170,8 @@ def train_model_sliding_window(
             metrics = defaultdict(float)
             epoch_samples = 0
 
-            pbar = tqdm(dataloaders[phase], desc=f'{phase} phase')
-            
+            pbar = tqdm(dataloaders[phase], desc=f'{phase} phase', dynamic_ncols=True, leave=True)
+
             for inputs, labels in pbar:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
@@ -145,7 +188,7 @@ def train_model_sliding_window(
 
                 epoch_samples += inputs.size(0)
 
-                pbar.set_postfix({'loss': loss.item()})
+                pbar.set_postfix({'loss': f'{loss.item():.4f}'}, refresh=False)
 
             print_metrics(metrics, epoch_samples, phase)
             epoch_loss = metrics['loss'] / epoch_samples

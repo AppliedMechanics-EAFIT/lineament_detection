@@ -1,0 +1,62 @@
+{
+  "checkpoint": "data\\Colombia\\checkpoints\\colombia_finetuned_unet_v3.pt",
+  "dataset": {
+    "stack_dir": "C:\\Users\\mboter45\\OneDrive - Universidad EAFIT\\lineamientos\\lineament_detection\\data\\Colombia\\training\\stacks",
+    "mask_dir": "C:\\Users\\mboter45\\OneDrive - Universidad EAFIT\\lineamientos\\lineament_detection\\data\\Colombia\\training\\masks",
+    "n_tiles": 263,
+    "pixels_total": 68943872,
+    "gt_positive_fraction": 0.0031744373161983128
+  },
+  "baseline_metrics_0_5": {
+    "threshold": 0.5,
+    "accuracy": 0.996825635433197,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "iou": 0.0
+  },
+  "optimal_thresholds": {
+    "0.7": {
+      "threshold": 0.020100502512562814,
+      "precision": 0.0036400824319571257,
+      "recall": 0.8030823469161987,
+      "f1": 0.0072473157197237015,
+      "iou": 0.0036368363071233034
+    },
+    "0.75": {
+      "threshold": 0.020100502512562814,
+      "precision": 0.0036400824319571257,
+      "recall": 0.8030823469161987,
+      "f1": 0.0072473157197237015,
+      "iou": 0.0036368363071233034
+    },
+    "0.8": {
+      "threshold": 0.020100502512562814,
+      "precision": 0.0036400824319571257,
+      "recall": 0.8030823469161987,
+      "f1": 0.0072473157197237015,
+      "iou": 0.0036368363071233034
+    },
+    "0.85": {
+      "threshold": 0.01507537688442211,
+      "precision": 0.003351792460307479,
+      "recall": 0.9200623035430908,
+      "f1": 0.006679252255707979,
+      "iou": 0.0033508166670799255
+    },
+    "0.9": {
+      "threshold": 0.01507537688442211,
+      "precision": 0.003351792460307479,
+      "recall": 0.9200623035430908,
+      "f1": 0.006679252255707979,
+      "iou": 0.0033508166670799255
+    }
+  },
+  "calibration_error": {
+    "ece": 0.17611846275394782
+  },
+  "finetune_split": {
+    "n_train": 184,
+    "n_val": 79
+  }
+}
