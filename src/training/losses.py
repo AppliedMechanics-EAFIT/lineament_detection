@@ -19,7 +19,7 @@ def dice_loss_and_sigmoid(pred, target, smooth=1e-6):
 def focal_loss_with_logits(inputs, targets, alpha=0.25, gamma=2.0, reduction='mean'):
     bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
 
-    probs = F.sigmoid(inputs)
+    probs = torch.sigmoid(inputs)
 
     pt = torch.where(targets == 1, probs, 1 - probs)
 
@@ -97,14 +97,14 @@ def calc_loss_sw(outputs, labels, metrics):
 
 def calculate_pos_weight(labels, eps=1e-6):
     """
-    Calcula el peso positivo para BCE con logits.
-    eps: pequeña constante para estabilidad numérica
+    Compute positive class weight for BCEWithLogitsLoss.
+
+    eps guards against division by zero when a batch contains no positive
+    pixels (all background) or no negative pixels.
     """
     labels_np = labels.detach().cpu().numpy()
     pos_mean = labels_np.mean()
-    neg_mean = 1 - pos_mean + eps
+    neg_mean = 1.0 - pos_mean
 
-    weight = neg_mean / pos_mean
-    weight = torch.tensor(weight, device=labels.device)
-
-    return weight
+    weight = (neg_mean + eps) / (pos_mean + eps)
+    return torch.tensor(weight, dtype=torch.float32, device=labels.device)

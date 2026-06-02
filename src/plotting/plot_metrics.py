@@ -3,11 +3,13 @@ import matplotlib.pyplot as plt
 def plot_losses(train_losses, val_losses):
     epochs = range(1, len(train_losses) + 1)
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(epochs, train_losses, 'b-', label='Training Loss')
-    plt.plot(epochs, val_losses, 'r-', label='Validation Loss')
-    plt.title('Training and Validation Loss over Epochs')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid()
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(epochs, train_losses, 'b-', label='Training Loss')
+    ax.plot(epochs, val_losses, 'r-', label='Validation Loss')
+    ax.set_title('Training and Validation Loss over Epochs')
+    ax.set_xlabel('Epochs')
+    ax.set_ylabel('Loss')
+    ax.legend()
+    ax.grid()
+    fig.tight_layout()
+    return fig

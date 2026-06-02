@@ -343,7 +343,10 @@ def train_gan(
                     best_gen_state = copy.deepcopy(generator.state_dict())
                     print("Saving best generator model...")
 
-    generator.load_state_dict(best_gen_state)
+    if best_gen_state is not None:
+        generator.load_state_dict(best_gen_state)
+    else:
+        print("Warning: best_gen_state was never updated — keeping last epoch weights.")
     return generator, train_g_losses, train_d_losses, val_g_losses, val_d_losses
 
 def train_model_pos_weight(
@@ -353,12 +356,14 @@ def train_model_pos_weight(
     dataloaders,
     num_epochs=25,
     device='cpu',
-    loss_weights={'bce': 1.0, 'dice': 1.0, 'focal': 0.5}
+    loss_weights=None,
 ):
     """
-    Entrena un modelo utilizando una combinación ponderada de BCE, Dice y Focal Loss,
-    calculando dinámicamente el pos_weight para BCE en cada batch.
+    Train a model using a weighted combination of BCE, Dice and Focal Loss,
+    computing pos_weight dynamically from each batch.
     """
+    if loss_weights is None:
+        loss_weights = {'bce': 1.0, 'dice': 1.0, 'focal': 0.5}
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = float('inf')
 
@@ -397,17 +402,14 @@ def train_model_pos_weight(
 
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
-                    
-                    # Calcular pos_weight para BCE
+
                     pos_weight = losses.calculate_pos_weight(labels)
                     criterion_bce = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-                    
-                    # Calcular losses individuales
+
                     bce_loss = criterion_bce(outputs, labels)
                     dice_l = losses.dice_loss_and_sigmoid(outputs, labels)
                     focal_l = losses.focal_loss_with_logits(outputs, labels)
-                    
-                    # Loss total ponderado
+
                     total_loss = (
                         loss_weights['bce'] * bce_loss +
                         loss_weights['dice'] * dice_l +
@@ -418,14 +420,12 @@ def train_model_pos_weight(
                         total_loss.backward()
                         optimizer.step()
 
-                # Acumular losses
                 running_loss += total_loss.item() * batch_size
                 running_bce += bce_loss.item() * batch_size
                 running_dice += dice_l.item() * batch_size
                 running_focal += focal_l.item() * batch_size
                 epoch_samples += batch_size
 
-                # Actualizar barra de progreso
                 progress_bar.set_postfix({
                     'total': f'{total_loss.item():.4f}',
                     'bce': f'{bce_loss.item():.4f}',
@@ -434,7 +434,6 @@ def train_model_pos_weight(
                     'avg': f'{running_loss/epoch_samples:.4f}'
                 })
 
-            # Calcular losses promedio de la época
             epoch_loss = running_loss / epoch_samples
             epoch_bce = running_bce / epoch_samples
             epoch_dice = running_dice / epoch_samples
@@ -444,10 +443,9 @@ def train_model_pos_weight(
 
             if phase == 'val':
                 val_losses.append(epoch_loss)
-                
-                # Guardar mejor modelo
+
                 if epoch_loss < best_loss:
-                    print(f'✓ Mejor validación: {epoch_loss:.4f} (anterior: {best_loss:.4f})')
+                    print(f'Best val so far: {epoch_loss:.4f} (previous: {best_loss:.4f})')
                     best_loss = epoch_loss
                     best_model_wts = copy.deepcopy(model.state_dict())
             else:
@@ -455,12 +453,11 @@ def train_model_pos_weight(
                 scheduler.step()
 
         time_elapsed = time.time() - since
-        print(f'Tiempo: {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
+        print(f'Epoch time: {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
 
     print(f'\n{"="*50}')
-    print(f'Mejor validation loss: {best_loss:.4f}')
+    print(f'Best validation loss: {best_loss:.4f}')
     print(f'{"="*50}')
 
-    # Cargar los mejores pesos
     model.load_state_dict(best_model_wts)
     return model, train_losses, val_losses, best_loss
